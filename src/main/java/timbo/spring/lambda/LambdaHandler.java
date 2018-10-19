@@ -1,27 +1,39 @@
 package timbo.spring.lambda;
 
 import com.amazonaws.serverless.exceptions.ContainerInitializationException;
-import com.amazonaws.serverless.proxy.internal.model.AwsProxyRequest;
-import com.amazonaws.serverless.proxy.internal.model.AwsProxyResponse;
+import com.amazonaws.serverless.proxy.model.AwsProxyRequest;
+import com.amazonaws.serverless.proxy.model.AwsProxyResponse;
 import com.amazonaws.serverless.proxy.spring.SpringLambdaContainerHandler;
 import com.amazonaws.services.lambda.runtime.Context;
-import com.amazonaws.services.lambda.runtime.RequestHandler;
+import com.amazonaws.services.lambda.runtime.RequestStreamHandler;
 
-public class LambdaHandler implements RequestHandler<AwsProxyRequest, AwsProxyResponse> {
+import javax.servlet.DispatcherType;
+import javax.servlet.FilterRegistration;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.util.EnumSet;
 
-    private SpringLambdaContainerHandler<AwsProxyRequest, AwsProxyResponse> handler;
+public class LambdaHandler implements RequestStreamHandler {
 
-    @Override
-    public AwsProxyResponse handleRequest(AwsProxyRequest input, Context context) {
-        if (handler == null) {
-            try {
-                handler = SpringLambdaContainerHandler.getAwsProxyHandler(AppConfig.class);
-            } catch (ContainerInitializationException e) {
-                e.printStackTrace();
-                return null;
-            }
+    private static SpringLambdaContainerHandler<AwsProxyRequest, AwsProxyResponse> handler;
+
+    static {
+        try {
+            handler = SpringLambdaContainerHandler.getAwsProxyHandler(AppConfig.class);
+            handler.onStartup(servletContext -> {
+                FilterRegistration.Dynamic registration = servletContext.addFilter("CognitoIdentityFilter", CognitoIdentityFilter.class);
+                registration.addMappingForUrlPatterns(EnumSet.of(DispatcherType.REQUEST), false, "/*");
+            });
+        } catch (ContainerInitializationException e) {
+            e.printStackTrace();
+            throw new RuntimeException("Could not initialize Spring framework", e);
         }
-        return handler.proxy(input, context);
     }
 
+    @Override
+    public void handleRequest(InputStream inputStream, OutputStream outputStream, Context context) throws IOException {
+        handler.proxyStream(inputStream, outputStream, context);
+        outputStream.close();
+    }
 }

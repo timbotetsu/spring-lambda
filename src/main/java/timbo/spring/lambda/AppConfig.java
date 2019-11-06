@@ -1,12 +1,11 @@
 package timbo.spring.lambda;
 
-import org.springframework.context.annotation.ComponentScan;
-import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
+import timbo.spring.lambda.controller.TestController;
 
 @EnableWebMvc
-@Configuration
-@ComponentScan
+@Import({TestController.class})
 public class AppConfig {
 
 
